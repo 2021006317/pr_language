@@ -1,0 +1,9 @@
+ fun digits(num:int)=
+= let
+= fun digitList(a:int, list_a:int list)=
+= if a<10 then a::list_a
+= else digitList(a div 10, (a mod 10)::list_a)
+= in
+= digitList(num, [])
+= end
+= ;
