@@ -4,7 +4,7 @@ datatype pattern = Wildcard | Variable of String | UnitP
 datatype valu = Const of int | Uint | Tuple of valu list
                 | Constructor of string * valu
 
-fun check_pat(p: pattern)=
+fun check_pat(p: pattern) =
     let
         fun help(pat : pattern) : string list =
             case pat of
@@ -14,9 +14,19 @@ fun check_pat(p: pattern)=
                 | Const(i) => [i]
                 | TupleP(pl) => check_pat(hd(pl))::check_pat(tl(pl))
                 | ConstructorP(sl,p) => sl::check_pat(p)
-        fun help2(sl : string list) : bool=
+        (* 이렇게 하면 안됨. *)    
+        fun is_repeat(sl : string list) : bool =
             let
-                fun check_exist()
-            if List.exists(fn(hd(sl)))
+                fun check_repeat(s, sll) : bool =
+                    if null sll
+                    then false
+                    else if s = hd(sll)
+                        then true
+                        else check_repeat(s, tl(sll))
+            in
+                if null sl
+                then false
+                else check_repeat(hd(sl), tl(sl))
+            end
     in
     end
