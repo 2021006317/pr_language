@@ -35,6 +35,8 @@ fun check_pat(p: pattern) : bool =
     end
 
 (* 2. match(20 pts) *)
+(*
+exception MatchFail
 fun match (v, p) =
   case (v, p) of
     (_, Wildcard) => SOME []
@@ -59,12 +61,14 @@ fun match (v, p) =
   | (Const _, _) => NONE
   | (Tuple _, _) => NONE
   | (Uint, _) => NONE
+*)
 
 (* 3 *)
 type name = string 
 datatype RSP = ROCK | SCISSORS | PAPER
 datatype 'a strategy = Cons of 'a * (unit -> 'a strategy) 
-datatype tournament = PLAYER of name * (RSP strategy ref) | MATCH of tournament * tournament
+datatype tournament = PLAYER of name * (RSP strategy ref)
+                    | MATCH of tournament * tournament
 
 fun onlyOne(one:RSP) = Cons(one, fn() => onlyOne(one)) 
 fun alterTwo(one:RSP, two:RSP) = Cons(one, fn() => alterTwo(two, one))
@@ -77,27 +81,29 @@ val rp = alterTwo(ROCK, PAPER)
 val sr = alterTwo(SCISSORS, ROCK)
 val ps = alterTwo(PAPER, SCISSORS)
 val srp = alterThree(SCISSORS, ROCK, PAPER)
+
 fun next(strategyRef) =
     let val Cons(rsp, func) = !strategyRef
     in 
         strategyRef := func();
         rsp 
     end
+
 fun whosWinner(t: tournament) =
     let
-        fun playMatch(stratRef1: RSP strategy ref, stratRef2: RSP strategy ref) =
+        fun playMatch(a: RSP strategy ref, b: RSP strategy ref) =
             let
-                val move1 = next stratRef1
-                val move2 = next stratRef2
+                val move1 = next a
+                val move2 = next b
             in
                 case (move1, move2) of
-                    (ROCK, PAPER) => stratRef2
-                | (ROCK, SCISSORS) => stratRef1
-                | (PAPER, ROCK) => stratRef1
-                | (PAPER, SCISSORS) => stratRef2
-                | (SCISSORS, ROCK) => stratRef2
-                | (SCISSORS, PAPER) => stratRef1
-                | _ => playMatch(stratRef1, stratRef2)  (* Tie, play again *)
+                    (ROCK, PAPER) => b
+                    | (ROCK, SCISSORS) => a
+                    | (PAPER, ROCK) => a
+                    | (PAPER, SCISSORS) => b
+                    | (SCISSORS, ROCK) => b
+                    | (SCISSORS, PAPER) => a
+                    | _ => playMatch(a, b)  (* play again *)
             end
     in
         case t of
@@ -108,12 +114,11 @@ fun whosWinner(t: tournament) =
                 val winner2 = whosWinner(t2)
             in
                 case (winner1, winner2) of
-                    (PLAYER(name1, stratRef1), PLAYER(name2, stratRef2)) =>
+                    (PLAYER(name1, a), PLAYER(name2, b)) =>
                         PLAYER(
-                            if (stratRef1 = playMatch(stratRef1, stratRef2))
-                            then name1
-                            else name2,
-                            stratRef1
+                            if (a = playMatch(a, b))
+                            then (name1, a)
+                            else (name2, b)
                         )
                 | _ => raise Fail "Invalid tournament structure"
             end
