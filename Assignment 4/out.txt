@@ -1,0 +1,5 @@
+Add(Var(a), Int(2)) = 42
+MLet(a, Int(5), MLet(b, Int(10), Add(Var(a), Var(b)))) = 15
+MLet(a, Int(5), MLet(b, Int(10), Add(Var(a), Var(b)))) = 15
+terminate called after throwing an instance of 'std::bad_variant_access'
+  what():  Unexpected index
