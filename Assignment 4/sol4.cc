@@ -230,7 +230,7 @@ Expr eval_under_env(Expr e, std::map<string, Expr> env) {
 
         // AUnit() is a MUPL expression (holding no data, much like () in ML). 
         // Notice AUnit() is a MUPL expression, but AUnit is not.
-        [&](AUnit& au) { return e; },
+        [&](AUnit& au) { return Expr(AUnit()); },
         // If e1 is a MUPL expression, then IsAUnit(e1) is a MUPL expression (testing for AUnit()).
         [&](box<struct IsAUnit>& isa) { 
             Expr e1 = eval_under_env(isa->e, env);
@@ -247,15 +247,13 @@ Expr eval_under_env(Expr e, std::map<string, Expr> env) {
         [&](box<struct IfGreater>& ifgt) {
             Expr e1 = eval_under_env(ifgt->e1, env);
             Expr e2 = eval_under_env(ifgt->e2, env);
-            Expr e3 = eval_under_env(ifgt->e3, env);
-            Expr e4 = eval_under_env(ifgt->e4, env);
             if (is<Int>(e1) && is<Int>(e2)) {
                 Int i1 = std::get<Int>(e1);
                 Int i2 = std::get<Int>(e2);
                 if (i1.val > i2.val) {
-                    return e3;
+                    return eval_under_env(ifgt->e3, env);
                 } else {
-                    return e4;
+                    return eval_under_env(ifgt->e4, env);
                 }
             } else {
                 throw std::runtime_error("Unexpected types for sub-expressions of IfGreater");
@@ -273,25 +271,24 @@ Expr eval_under_env(Expr e, std::map<string, Expr> env) {
         // In e, s1 is bound to the function itself (for recursion) and s2 is bound to the (one) argument.
         // Also, Fun(“”, s2, e) is allowed for anonymous non-recursive function.
         [&](box<struct Fun>& f) {
-            return Expr(Closure(env, *f));
+            return Expr(Closure(env, *std::get<box<struct Fun>>(e)));
         },
         // Closure(env, f) is a MUPL value where f is MUPL function (an expression made from fun) and env is an environment mapping variables to values.
         // Closures do not appear in source programs; they result from evaluating functions. 
         [&](box<struct Closure>& c) {
-            return e;
+            return eval_under_env(c->f.body, c->env);
         },
-        // If e1 and e2 are MUPL expressions, then APair(e1, e2) is a MUPL expression (a pair-creator).
         [&](box<struct APair>& ap) {
             Expr e1 = eval_under_env(ap->e1, env);
             Expr e2 = eval_under_env(ap->e2, env);
             return Expr(APair(e1, e2));
         },
         // If e1 is a MUPL expression, then Fst(e1) is a MUPL expression (getting the first part of a pair).
-        [&](box<struct Fst>& fst) { 
+        [&](box<struct Fst>& fst) {
             Expr e = eval_under_env(fst->e, env);
             if (is<APair>(e)) {
                 APair ap = *std::get<box<struct APair>>(e);
-                return Expr(ap.e1);
+                return ap.e1;
             } else {
                 throw std::runtime_error("Unexpected type for sub-expression of Fst");
             }
@@ -302,7 +299,7 @@ Expr eval_under_env(Expr e, std::map<string, Expr> env) {
             Expr e1 = eval_under_env(snd->e, env);
             if (is<APair>(e1)) {
                 APair ap = *std::get<box<struct APair>>(e1);
-                return Expr(ap.e2);
+                return ap.e2;
             } else {
                 throw std::runtime_error("Unexpected type for sub-expression of Snd");
             }   
@@ -315,7 +312,9 @@ Expr eval_under_env(Expr e, std::map<string, Expr> env) {
                 Closure closure = *std::get<box<struct Closure>>(e1);
                 std::map<string, Expr> newEnv = makeNewEnvFrom(closure.env);
                 newEnv.insert_or_assign(closure.f.argName, e2); // argName에 e2 대입
-                newEnv.insert_or_assign(closure.f.funName, closure); // funName에 closure 대입
+                if (closure.f.funName != ""){
+                    newEnv.insert_or_assign(closure.f.funName, closure); // funName에 closure 대입
+                }
                 return eval_under_env(closure.f.body, newEnv);
             } else {
                 throw std::runtime_error("Unexpected type for sub-expression of Call");
@@ -342,7 +341,8 @@ Expr makeIntList(int from, int to) {
 
 // e1 is AUnit ? e2 : e3
 Expr IfAUnit(Expr e1, Expr e2, Expr e3) {
-    return IfGreater(IsAUnit(e1), Int(0), e2, e3);
+    Expr res = IfGreater(IsAUnit(e1), Int(0), e2, e3);
+    return res;
 }
 
 // Problem 1a: Convert List<Expr> to MUPL list
@@ -373,19 +373,18 @@ List<Expr> FromMuplList(Expr muplList) {
 
 Expr MuplMap() {
 	Expr fn = Fun("", "fun_arg",
-        MLet("muplrec",
             Fun("muplrec", "lst",
                 IfAUnit(Var("lst"), AUnit(),
                                     APair(Call(Var("fun_arg"), Fst(Var("lst"))),
-                                        Call(Var("muplrec"), Snd(Var("lst")))))),
-            Call(Var("muplrec"), Var("lst"))));
+                                        Call(Var("muplrec"), Snd(Var("lst"))))))
+        );
     return fn;
 }
 
-
 Expr MuplMapAddN() {
     Expr map = MuplMap();
-    return Fun("", "I", Call(map, Fun("", "x", Add(Var("x"), Var("I")))));
+    Expr fun = Fun("", "I", Call(map, Fun("", "x", Add(Var("x"), Var("I")))));
+    return fun;
 }
 
 int main() {
@@ -428,6 +427,9 @@ int main() {
     Expr e7 = makeIntList(0, 2);
     std::cout << "e7:" << toString(e7) << " = " << toString(e7) << std::endl;
 
+    Expr e8 = eval(Call(Call(MuplMapAddN(), Int(10)), makeIntList(0, 5)));
+    std::cout << "e8:" << toString(e8) << " = " << toString(e8) << std::endl;
+
     // test for To, From
     List<Expr> myList = makeList(Expr(Int(0)), Expr(Int(1)), Expr(Int(2)));
 
@@ -444,9 +446,6 @@ int main() {
             std::cout << ", ";
     }
     std::cout << "]" << std::endl;
-    
-    // Expr e8 = eval(Call(Call(MuplMapAddN(), Int(10)), makeIntList(0, 5)));
-    // std::cout << "e8:" << toString(e8) << " = " << toString(e8) << std::endl;
     
     return 0;
 }
