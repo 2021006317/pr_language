@@ -5,9 +5,9 @@ datatype valu = Const of int | Unit | Tuple of valu list
                 | Constructor of string * valu
 
 fun fold (f,acc,xs)= 
-	case xs of
-		[] => acc
-		| x::xs' => fold(f, f(x), xs')
+   case xs of
+      [] => acc
+      | x::xs' => fold(f, f(x), xs')
 
 (* 1. check_pat (20pts) *)
 fun check_pat(p: pattern) : bool =
@@ -35,33 +35,26 @@ fun check_pat(p: pattern) : bool =
     end
 
 (* 2. match(20 pts) *)
-(*
-exception MatchFail
 fun match (v, p) =
-  case (v, p) of
-    (_, Wildcard) => SOME []
-  | (_, UnitP) => if v = Unit then SOME [] else NONE
-  | (Const i, ConstP j) => if i = j then SOME [] else NONE
-  | (Tuple vs, TupleP ps) =>
-      if length ps = length vs then
-                let
-                  val lst = List.foldr (fn (p', v') =>
-                    fn acc =>
-                      (case match (v', p') of
-                        NONE => raise MatchFail
-                      | SOME lst' => lst' @ acc)) [] (ListPair.zip (ps, vs))
-                in
-                  SOME (lst @ helper xs ys)
-                end
-              else NONE
-  | (Constructor (s1, v'), ConstructorP (s2, p')) =>
-      if s1 = s2 then match (v', p')
-      else NONE
-  | (Constructor _, _) => NONE
-  | (Const _, _) => NONE
-  | (Tuple _, _) => NONE
-  | (Uint, _) => NONE
-*)
+  let
+    fun helper (ConstructorP (s1, p), Constructor (s2, v)) =
+          if s1 = s2 then match (v, p) else NONE
+      | helper (TupleP ps, Tuple vs) =
+          if List.length ps = List.length vs then
+            let
+              val bindings = List.mapPartial (fn (p, v) => match (v, p)) (ListPair.zip (ps, vs))
+            in
+              if List.length bindings = List.length ps then SOME (List.concat bindings) else NONE
+            end
+          else NONE
+      | helper (Wildcard, _) = SOME []
+      | helper (Variable s, v) = SOME [(s, v)]
+      | helper (ConstP i, Const j) = if i = j then SOME [] else NONE
+      | helper (UnitP, Unit) = SOME []
+      | helper _ = NONE
+  in
+    helper (p, v)
+  end
 
 (* 3 *)
 type name = string 
@@ -115,11 +108,9 @@ fun whosWinner(t: tournament) =
             in
                 case (winner1, winner2) of
                     (PLAYER(name1, a), PLAYER(name2, b)) =>
-                        PLAYER(
                             if (a = playMatch(a, b))
-                            then (name1, a)
-                            else (name2, b)
-                        )
+                            then PLAYER(name1, a)
+                            else PLAYER(name2, b)
                 | _ => raise Fail "Invalid tournament structure"
             end
     end
